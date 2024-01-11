@@ -4,8 +4,6 @@ STATE := 36
 PLACE := 51000
 PLACE_NAME := "New York, NY"
 
-
-
 DATA_DIR := ../faradata/working
 
 DATA := $(DATA_DIR)/faracen.csv
@@ -13,14 +11,28 @@ DATA := $(DATA_DIR)/faracen.csv
 # Where to put the results. For this demonstration
 OUTPUT_DIR := ./build
 
-PLOT_DIR := $(OUTPUT_DIR)/impact/$(STATE)/$(PLACE)
+VEHICLE_SUFFIX_population = _vp
+VEHICLE_SUFFIX_fraction = _vf
 
-X_FEATURES=\
+X_FEATURE_VEHICLE_population = B08201_002E
+X_FEATURE_VEHICLE_fraction = frac_B08201_002E
+
+# At the command-line, set VEHICLE_FEATURE to either
+# population or fraction or leave it undefined.
+ifdef VEHICLE_FEATURE
+X_FEATURE_VEHICLE := $(X_FEATURE_VEHICLE_$(VEHICLE_FEATURE))
+VEHICLE_SUFFIX := $(VEHICLE_SUFFIX_$(VEHICLE_FEATURE))
+else
+VEHICLE_SUFFIX :=
+endif
+
+X_FEATURES := \
     B03002_001E \
 	MedianFamilyIncome \
 	frac_B03002_003E frac_B03002_004E frac_B03002_005E frac_B03002_006E \
 	frac_B03002_007E frac_B03002_008E frac_B03002_010E frac_B03002_011E \
-	frac_B03002_012E
+	frac_B03002_012E \
+	$(X_FEATURE_VEHICLE)
 
 # We are trying to predict low access.
 Y_FEATURE=lapophalfshare
@@ -34,6 +46,8 @@ W_FEATURE=B03002_001E
 #CBSA := 12060
 #CBSA := 16980
 
+PLOT_DIR := $(OUTPUT_DIR)/impact/$(STATE)/$(PLACE)$(VEHICLE_SUFFIX)
+
 # Feature Names
 FEATURE_NAME_B03002_001E="Population"
 FEATURE_NAME_MedianFamilyIncome="Median Family Income"
@@ -46,6 +60,8 @@ FEATURE_NAME_frac_B03002_008E="Fraction of Population Who Identify as Non-Hipani
 FEATURE_NAME_frac_B03002_010E="Fraction of Population Who Identify as Non-Hipanic or Latino Two Races Including Some Other Race"
 FEATURE_NAME_frac_B03002_011E="Fraction of Population Who Identify as Non-Hipanic or Latino Two Races Excluding Some Other Race, and Three or More Races"
 FEATURE_NAME_frac_B03002_012E="Fraction of Population Who Identify as Hispanic or Latino of Any Race"
+FEATURE_NAME_B08201_002E="Households Without a Vehicle"
+FEATURE_NAME_frac_B08201_002E="Fraction of Households Without a Vehicle"
 
 FILTERS := STATE=$(STATE) PLACE=$(PLACE)
 PLOT_SUBTITLE := $(PLACE_NAME)
@@ -71,7 +87,9 @@ PLOTS := $(X_FEATURES:%=${PLOT_DIR}/%_$(call to_suffix,$(FILTERS)).png)
 
 all: plot
 
-PARAMS = $(OUTPUT_DIR)/params-$(STATE)-$(PLACE).yaml
+PARAMS := $(OUTPUT_DIR)/params-$(STATE)-$(PLACE)$(VEHICLE_SUFFIX).yaml
+
+# WEIGHT := -w ${W_FEATURE}
 
 params: $(PARAMS)
 
@@ -83,7 +101,7 @@ $(PARAMS): $(DATA_DIR)/faracen-$(STATE).csv
   	optimize \
 	-X ${X_FEATURES} \
 	-y ${Y_FEATURE} \
-	-w ${W_FEATURE} \
+	${WEIGHT} \
 	-f STATE=$(STATE) PLACE=$(PLACE) \
 	-o $@ \
 	$<
@@ -96,7 +114,7 @@ PLOTS := $(X_FEATURES:%=$(PLOT_DIR)/%.png)
 plot: $(PLOTS)
 
 ${PLOTS} &: ${PARAMS} $(DATA_DIR)/faracen-$(STATE).csv
-	echo Plotting $(PLOTS)
+	@echo Plotting $(PLOTS)
 	mkdir -p ${PLOT_DIR}
 	impactchart \
 	--log INFO \
@@ -104,7 +122,7 @@ ${PLOTS} &: ${PARAMS} $(DATA_DIR)/faracen-$(STATE).csv
 	-p ${PARAMS} \
 	-X ${NAMED_X_FEATURES} \
 	-y ${Y_FEATURE} \
-	-w ${W_FEATURE} \
+	${WEIGHT} \
 	-f ${FILTERS} \
 	--subtitle ${PLOT_SUBTITLE} \
 	--y-name ${Y_NAME} \
@@ -114,6 +132,4 @@ ${PLOTS} &: ${PARAMS} $(DATA_DIR)/faracen-$(STATE).csv
 	$(DATA_DIR)/faracen-$(STATE).csv
 
 clean:
-	-rm ${PLOT_DIR}/*
-	-rm ${PARAMS}
-
+	-rm -rf ${OUTPUT_DIR}
