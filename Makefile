@@ -15,7 +15,7 @@ VEHICLE_SUFFIX_population = _vp
 VEHICLE_SUFFIX_fraction = _vf
 
 X_FEATURE_VEHICLE_population = B08201_002E
-X_FEATURE_VEHICLE_fraction = frac_B08201_002E
+X_FEATURE_VEHICLE_fraction = frac_no_B08201_002E
 
 # At the command-line, set VEHICLE_FEATURE to either
 # population or fraction or leave it undefined.
@@ -27,12 +27,12 @@ VEHICLE_SUFFIX :=
 endif
 
 X_FEATURES := \
-    B03002_001E \
 	MedianFamilyIncome \
 	frac_B03002_003E frac_B03002_004E frac_B03002_005E frac_B03002_006E \
 	frac_B03002_007E frac_B03002_008E frac_B03002_010E frac_B03002_011E \
 	frac_B03002_012E \
 	$(X_FEATURE_VEHICLE)
+#    B03002_001E \
 
 # We are trying to predict low access.
 Y_FEATURE=lapophalfshare
@@ -41,10 +41,6 @@ Y_NAME := "Low Access Share at 1/2 Mile"
 # Weight is total population.
 W_FEATURE=B03002_001E
 
-# CBSA
-#CBSA := 35620
-#CBSA := 12060
-#CBSA := 16980
 
 PLOT_DIR := $(OUTPUT_DIR)/impact/$(STATE)/$(PLACE)$(VEHICLE_SUFFIX)
 
@@ -61,7 +57,7 @@ FEATURE_NAME_frac_B03002_010E="Fraction of Population Who Identify as Non-Hipani
 FEATURE_NAME_frac_B03002_011E="Fraction of Population Who Identify as Non-Hipanic or Latino Two Races Excluding Some Other Race, and Three or More Races"
 FEATURE_NAME_frac_B03002_012E="Fraction of Population Who Identify as Hispanic or Latino of Any Race"
 FEATURE_NAME_B08201_002E="Households Without a Vehicle"
-FEATURE_NAME_frac_B08201_002E="Fraction of Households Without a Vehicle"
+FEATURE_NAME_frac_no_B08201_002E="Fraction of Households With a Vehicle"
 
 FILTERS := STATE=$(STATE) PLACE=$(PLACE)
 PLOT_SUBTITLE := $(PLACE_NAME)
@@ -93,6 +89,9 @@ PARAMS := $(OUTPUT_DIR)/params-$(STATE)-$(PLACE)$(VEHICLE_SUFFIX).yaml
 
 params: $(PARAMS)
 
+# Use negative mean absolute error as a scoring metric.
+OPTIMIZE_SCORING := --scoring neg_mean_absolute_error
+
 # Optimize to get the parameters.
 $(PARAMS): $(DATA_DIR)/faracen-$(STATE).csv
 	mkdir -p ${@D}
@@ -103,6 +102,7 @@ $(PARAMS): $(DATA_DIR)/faracen-$(STATE).csv
 	-y ${Y_FEATURE} \
 	${WEIGHT} \
 	-f STATE=$(STATE) PLACE=$(PLACE) \
+	$(OPTIMIZE_SCORING) \
 	-o $@ \
 	$<
 
@@ -112,6 +112,8 @@ $(PARAMS): $(DATA_DIR)/faracen-$(STATE).csv
 PLOTS := $(X_FEATURES:%=$(PLOT_DIR)/%.png)
 
 plot: $(PLOTS)
+
+PLOT_ARGS :=
 
 ${PLOTS} &: ${PARAMS} $(DATA_DIR)/faracen-$(STATE).csv
 	@echo Plotting $(PLOTS)
@@ -129,7 +131,11 @@ ${PLOTS} &: ${PARAMS} $(DATA_DIR)/faracen-$(STATE).csv
 	-o ${PLOT_DIR} \
 	-S ${SEED} \
 	-k ${K} \
+	${PLOT_ARGS} \
 	$(DATA_DIR)/faracen-$(STATE).csv
 
 clean:
 	-rm -rf ${OUTPUT_DIR}
+
+
+# Specific paper
